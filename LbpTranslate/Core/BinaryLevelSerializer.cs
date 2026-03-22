@@ -1,8 +1,5 @@
-﻿using System.Diagnostics;
+﻿namespace LbpTranslate.Core;
 
-namespace LbpTranslate.Core;
-
- 
 /// <summary>
 /// Reads and writes binary LBP level files by delegating to the toolkit's
 /// jsoninator JAR for the binary &lt;-&gt; JSON conversion step.
@@ -10,65 +7,41 @@ namespace LbpTranslate.Core;
 /// </summary>
 public class BinaryLevelSerializer : ILevelSerializer
 {
-    private readonly string _jarPath;
- 
+    private readonly Jsoninator _jsoninator;
+
     /// <param name="jarPath">Absolute or relative path to jsoninator.jar.</param>
-    public BinaryLevelSerializer(string jarPath)
+    /// <param name="log">Optional log delegate forwarded to <see cref="Jsoninator"/>.</param>
+    /// <param name="maxHeapMb">JVM heap cap in MB forwarded to <see cref="Jsoninator"/>.</param>
+    public BinaryLevelSerializer(string jarPath, Action<string>? log = null, int maxHeapMb = 256)
     {
-        _jarPath = jarPath;
+        _jsoninator = new Jsoninator(jarPath, log) { MaxHeapMb = maxHeapMb };
     }
- 
+
     public LbpLevel Deserialize(string path)
     {
         string tempJson = Path.ChangeExtension(Path.GetTempFileName(), ".json");
         try
         {
-            RunJsoninator(path, tempJson);
+            _jsoninator.Convert(path, tempJson);
             return new LbpLevel(tempJson);
         }
         finally
         {
-            if (File.Exists(tempJson))
-                File.Delete(tempJson);
+            if (File.Exists(tempJson)) File.Delete(tempJson);
         }
     }
- 
+
     public void Serialize(LbpLevel level, string outputPath)
     {
         string tempJson = Path.ChangeExtension(Path.GetTempFileName(), ".json");
         try
         {
             level.Export(tempJson);
-            RunJsoninator(tempJson, outputPath);
+            _jsoninator.Convert(tempJson, outputPath);
         }
         finally
         {
-            if (File.Exists(tempJson))
-                File.Delete(tempJson);
-        }
-    }
- 
-    private void RunJsoninator(string input, string output)
-    {
-        var psi = new ProcessStartInfo
-        {
-            FileName               = "java",
-            Arguments              = $"-jar \"{_jarPath}\" \"{input}\" \"{output}\"",
-            RedirectStandardOutput = true,
-            RedirectStandardError  = true,
-            UseShellExecute        = false,
-        };
- 
-        using Process process = Process.Start(psi)
-            ?? throw new InvalidOperationException("Failed to start jsoninator process.");
- 
-        process.WaitForExit();
- 
-        if (process.ExitCode != 0)
-        {
-            string error = process.StandardError.ReadToEnd().Trim();
-            throw new InvalidOperationException(
-                $"jsoninator exited with code {process.ExitCode}: {error}");
+            if (File.Exists(tempJson)) File.Delete(tempJson);
         }
     }
 }

@@ -1,18 +1,25 @@
-﻿using LbpTranslate.Plans;
+﻿using System.Text.Json.Serialization;
+using LbpTranslate.Plans;
 
 namespace LbpTranslate.Core;
 
-/// <summary>Maps a single asset guid from one game's bluray guid map to another.</summary>
+/// <summary>
+/// Maps a single asset from one game's bluray guid map to another.
+/// Both the source key and target key can be either a uint GUID or a SHA1 hash —
+/// every asset in LBP can be referenced by either form.
+/// </summary>
 public class LbpAsset
 {
-    public required uint          FromGuid;
-    public required uint?          ToGuid;
-    public required string?       FromPath;
-    public required string?       ToPath;
+    /// <summary>Source-game asset key (always a uint GUID from the bluray map).</summary>
+    [JsonConverter(typeof(AssetKeyJsonConverter))]
+    public required AssetRef FromKey;
 
-    /// <summary>
-    /// High-level category of this asset (e.g. Material, Sticker, Decoration).
-    /// Used to set per-category defaults in ConversionSettings.
-    /// </summary>
+    /// <summary>Target-game asset key, or null if no match was found.</summary>
+    [JsonConverter(typeof(AssetKeyJsonConverter))]
+    public required AssetRef? ToKey;
+
+    public required string? FromPath;
+    public required string? ToPath;
+
     public AssetCategory Category;
 }
