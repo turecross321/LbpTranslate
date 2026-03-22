@@ -51,13 +51,23 @@ public class LbpLevel
                         if (oldGuid == null)
                             continue;
 
-                        if (!settings.GuidMap.TryGetValue((uint)oldGuid, out LbpAsset? asset) || asset.ToGuid == null) // todo : change this!!
+                        settings.GuidMap.TryGetValue((uint)oldGuid, out LbpAsset? asset);
+                        
+                        if (asset?.ToGuid == null)
                         {
-                            if (!_unknownGuids.Contains((uint)oldGuid))
-                                _unknownGuids.Add((uint)oldGuid);
+                            if (asset?.Category != null)
+                            {
+                                newGuid = settings.CategoryDefaults[asset.Category];
+                                Console.WriteLine($"Defaulting asset [{asset.Category}] to {newGuid}");
+                            }
+                            else
+                            {
+                                if (!_unknownGuids.Contains((uint)oldGuid))
+                                    _unknownGuids.Add((uint)oldGuid);
                             
-                            Console.WriteLine($"Defaulting to {settings.DefaultGuid}");
-                            newGuid = settings.DefaultGuid;
+                                Console.WriteLine($"Unknown asset not part of settings {settings.DefaultGuid}");
+                                newGuid = settings.DefaultGuid;
+                            }
                         }
                         else
                             newGuid = asset.ToGuid;
