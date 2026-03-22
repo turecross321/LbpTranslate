@@ -57,8 +57,9 @@ public class LbpLevel
                         {
                             if (asset?.Category != null)
                             {
-                                newGuid = settings.CategoryDefaults[asset.Category];
-                                Console.WriteLine($"Defaulting asset [{asset.Category}] to {newGuid}");
+                                settings.CategoryDefaults.TryGetValue(asset.Category, out uint defaultGuid);
+                                newGuid = defaultGuid;
+                                Console.WriteLine($"Defaulting asset [{asset.Category}] to {defaultGuid}");
                             }
                             else
                             {
