@@ -7,6 +7,8 @@ namespace LbpTranslate.Cli;
 
 public static class Commands
 {
+    private const string SettingsFolder = "settings";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         IncludeFields = true,
@@ -20,12 +22,15 @@ public static class Commands
         Console.WriteLine("-- Generate Settings --");
         Console.WriteLine();
 
-        string  fromGame = Prompt.Ask("Source game name (e.g. LBP2)");
-        string  toGame   = Prompt.Ask("Target game name (e.g. LBP Vita)");
-        string  fromMap  = Prompt.Ask($"Path to {fromGame} blurayguids.map");
-        string  toMap    = Prompt.Ask($"Path to {toGame} blurayguids.map");
+        string fromGame = Prompt.Ask("Source game name (e.g. LBP2)");
+        string toGame   = Prompt.Ask("Target game name (e.g. LBP Vita)");
+        string fromMap  = Prompt.Ask($"Path to {fromGame} blurayguids.map");
+        string toMap    = Prompt.Ask($"Path to {toGame} blurayguids.map");
         string planDir  = Prompt.Ask("Path to source game data directory");
-        string outPath   = Prompt.Ask("Output settings file path", $"{fromGame}_to_{toGame}.json");
+
+        Directory.CreateDirectory(SettingsFolder);
+        string defaultOut = Path.Combine(SettingsFolder, $"{fromGame}_to_{toGame}.json");
+        string outPath    = Prompt.Ask("Output settings file path", defaultOut);
 
         Console.WriteLine();
 
@@ -73,15 +78,14 @@ public static class Commands
         Console.WriteLine("-- Convert Level --");
         Console.WriteLine();
 
-        string settingsPath = Prompt.Ask("Path to settings file");
+        string settingsPath = PickSettingsFile();
         string levelPath    = Prompt.Ask("Path to level file");
         bool   isBinary     = Prompt.Confirm("Is this a binary .lvl / .bin file?", defaultYes: true);
 
         ILevelSerializer serializer;
         if (isBinary)
         {
-            string jarPath = Path.Combine(
-                AppContext.BaseDirectory, "jsoninator.jar");
+            string jarPath = Path.Combine(AppContext.BaseDirectory, "jsoninator.jar");
 
             if (!File.Exists(jarPath))
             {
@@ -131,10 +135,61 @@ public static class Commands
         if (!Prompt.Confirm($"Export to {outPath}?"))
             outPath = Prompt.Ask("Enter custom output path");
 
-        // Use the same serializer so binary-in -> binary-out, JSON-in -> JSON-out
         serializer.Serialize(result.Level, outPath);
         Console.WriteLine("Done!");
 
         return Task.CompletedTask;
+    }
+
+    public static Task LookupGuid()
+    {
+        Console.WriteLine();
+        Console.WriteLine("-- Lookup GUID --");
+        Console.WriteLine();
+
+        string mapPath = Prompt.Ask("Path to blurayguids.map");
+
+        Console.WriteLine("Loading...");
+        BluRayGuids.FileDb db = BluRayGuids.FileDb.Load(mapPath);
+        Console.WriteLine($"Loaded {db.Entries.Count} entries.");
+        Console.WriteLine();
+
+        while (true)
+        {
+            string raw = Prompt.Ask("GUID to look up (blank to exit)");
+            if (string.IsNullOrEmpty(raw)) break;
+
+            if (!uint.TryParse(raw, out uint guid))
+            {
+                Console.WriteLine("Invalid GUID — enter a numeric value.");
+                continue;
+            }
+
+            if (db.Lookup.TryGetValue(guid, out BluRayGuids.FileDbEntry? entry))
+                Console.WriteLine($"  => {entry.Path}");
+            else
+                Console.WriteLine("  (not found)");
+
+            Console.WriteLine();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private static string PickSettingsFile()
+    {
+        string[] found = Directory.Exists(SettingsFolder)
+            ? Directory.GetFiles(SettingsFolder, "*.json")
+            : [];
+
+        if (found.Length == 0)
+            return Prompt.Ask("Path to settings file");
+
+        string[] options = [..found.Select(Path.GetFileName)!, "Enter path manually"];
+        int choice = Prompt.Menu("Select a settings file:", options);
+
+        return choice == found.Length
+            ? Prompt.Ask("Path to settings file")
+            : found[choice];
     }
 }

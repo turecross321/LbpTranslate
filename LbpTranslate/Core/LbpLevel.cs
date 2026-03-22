@@ -35,50 +35,54 @@ public class LbpLevel
         ReplaceGuids(_root, settings);
     }
 
+    private static readonly HashSet<string> PlanGuidTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "PLAN",
+    };
+
+    private static bool IsPlanGuidObject(JsonObject obj, out uint guid)
+    {
+        guid = 0;
+        JsonNode? typeNode  = obj["type"];
+        JsonNode? valueNode = obj["value"];
+        if (typeNode == null || valueNode == null) return false;
+        if (!PlanGuidTypes.Contains(typeNode.GetValue<string>())) return false;
+        try { guid = valueNode.GetValue<uint>(); return true; }
+        catch { return false; }
+    }
+
+    private uint? ResolveGuid(uint oldGuid, ConversionSettings settings)
+    {
+        if (!settings.GuidMap.TryGetValue(oldGuid, out LbpAsset? asset))
+        {
+            if (!_unknownGuids.Contains(oldGuid))
+                _unknownGuids.Add(oldGuid);
+            Console.WriteLine($"No mapping found for guid {oldGuid}, defaulting to {settings.DefaultGuid}");
+            return settings.DefaultGuid;
+        }
+
+        if (asset.ToGuid == null &&
+            settings.CategoryDefaults.TryGetValue(asset.Category, out uint categoryDefault))
+            return categoryDefault;
+
+        return asset.ToGuid;
+    }
+
     private void ReplaceGuids(JsonNode node, ConversionSettings settings)
     {
         switch (node)
         {
             case JsonObject obj:
             {
+                if (IsPlanGuidObject(obj, out uint oldGuid))
+                    obj["value"] = ResolveGuid(oldGuid, settings);
+
                 foreach ((string key, JsonNode? value) in obj.ToList())
                 {
-                    if (key == "planGUID")
-                    {
-                        uint? oldGuid = obj[key]?.GetValue<uint?>();
-                        uint? newGuid;
-                        
-                        if (oldGuid == null)
-                            continue;
-
-                        settings.GuidMap.TryGetValue((uint)oldGuid, out LbpAsset? asset);
-                        
-                        if (asset?.ToGuid == null)
-                        {
-                            if (asset?.Category != null)
-                            {
-                                settings.CategoryDefaults.TryGetValue(asset.Category, out uint defaultGuid);
-                                newGuid = defaultGuid;
-                                Console.WriteLine($"Defaulting asset [{asset.Category}] to {defaultGuid}");
-                            }
-                            else
-                            {
-                                if (!_unknownGuids.Contains((uint)oldGuid))
-                                    _unknownGuids.Add((uint)oldGuid);
-                            
-                                Console.WriteLine($"Unknown asset not part of settings {settings.DefaultGuid}");
-                                newGuid = settings.DefaultGuid;
-                            }
-                        }
-                        else
-                            newGuid = asset.ToGuid;
-                        
-                        obj[key] = newGuid;
-                    }
+                    if (key == "planGUID" && obj[key]?.GetValue<uint?>() is { } planGuid)
+                        obj[key] = ResolveGuid(planGuid, settings);
                     else if (value != null)
-                    {
                         ReplaceGuids(value, settings);
-                    }
                 }
 
                 break;
@@ -86,11 +90,7 @@ public class LbpLevel
             case JsonArray arr:
             {
                 foreach (JsonNode? item in arr)
-                {
-                    if (item != null)
-                        ReplaceGuids(item, settings);
-                }
-
+                    if (item != null) ReplaceGuids(item, settings);
                 break;
             }
         }
