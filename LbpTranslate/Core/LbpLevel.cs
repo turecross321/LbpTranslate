@@ -51,7 +51,7 @@ public class LbpLevel
                         if (oldGuid == null)
                             continue;
 
-                        if (!settings.GuidMap.TryGetValue((uint)oldGuid, out LbpAsset? asset))
+                        if (!settings.GuidMap.TryGetValue((uint)oldGuid, out LbpAsset? asset) || asset.ToGuid == null) // todo : change this!!
                         {
                             if (!_unknownGuids.Contains((uint)oldGuid))
                                 _unknownGuids.Add((uint)oldGuid);

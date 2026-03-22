@@ -46,8 +46,6 @@ public static class Commands
 
         ConversionSettings settings = result.Settings;
 
-        // Per-category fallback guids — the library tells us which categories
-        // have unmatched assets; we just prompt for each one.
         if (result.UnmatchedCategories.Count > 0 &&
             Prompt.Confirm("Set per-category fallback guids for unmatched assets?", defaultYes: false))
         {
@@ -76,7 +74,28 @@ public static class Commands
         Console.WriteLine();
 
         string settingsPath = Prompt.Ask("Path to settings file");
-        string levelPath    = Prompt.Ask("Path to level JSON");
+        string levelPath    = Prompt.Ask("Path to level file");
+        bool   isBinary     = Prompt.Confirm("Is this a binary .lvl / .bin file?", defaultYes: true);
+
+        ILevelSerializer serializer;
+        if (isBinary)
+        {
+            string jarPath = Path.Combine(
+                AppContext.BaseDirectory, "jsoninator.jar");
+
+            if (!File.Exists(jarPath))
+            {
+                Console.WriteLine($"Error: jsoninator.jar not found at {jarPath}");
+                Console.WriteLine("Please place jsoninator.jar in the same directory as this executable.");
+                return Task.CompletedTask;
+            }
+
+            serializer = new BinaryLevelSerializer(jarPath);
+        }
+        else
+        {
+            serializer = new JsonLevelSerializer();
+        }
 
         Console.WriteLine();
         Console.WriteLine("Loading settings...");
@@ -96,6 +115,7 @@ public static class Commands
             LevelPath      = levelPath,
             Settings       = settings,
             TargetRevision = revision,
+            Serializer     = serializer,
         });
 
         if (result.UnresolvedGuids.Count > 0)
@@ -111,7 +131,8 @@ public static class Commands
         if (!Prompt.Confirm($"Export to {outPath}?"))
             outPath = Prompt.Ask("Enter custom output path");
 
-        result.Level.Export(outPath);
+        // Use the same serializer so binary-in -> binary-out, JSON-in -> JSON-out
+        serializer.Serialize(result.Level, outPath);
         Console.WriteLine("Done!");
 
         return Task.CompletedTask;

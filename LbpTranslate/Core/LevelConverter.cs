@@ -5,6 +5,13 @@ public record LevelConverterOptions
     public required string             LevelPath;
     public required ConversionSettings Settings;
     public required int                TargetRevision;
+
+    /// <summary>
+    /// Controls how the level is read from and written to disk.
+    /// Defaults to <see cref="JsonLevelSerializer"/> (toolkit JSON format).
+    /// Use <see cref="BinaryLevelSerializer"/> to work directly with binary .lvl files.
+    /// </summary>
+    public ILevelSerializer Serializer { get; init; } = new JsonLevelSerializer();
 }
 
 public record LevelConverterResult
@@ -27,7 +34,7 @@ public static class LevelConverter
     /// </summary>
     public static LevelConverterResult Convert(LevelConverterOptions options)
     {
-        LbpLevel level = new(options.LevelPath);
+        LbpLevel level = options.Serializer.Deserialize(options.LevelPath);
         level.SetRevision(options.TargetRevision);
         level.TranslateGuids(options.Settings);
 
