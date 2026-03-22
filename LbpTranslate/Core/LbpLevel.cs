@@ -33,7 +33,10 @@ public class LbpLevel
     public LbpLevel(string inputPath)
     {
         string json = File.ReadAllText(inputPath);
-        this._root = JsonNode.Parse(json)!;
+        this._root = JsonNode.Parse(json, null, new JsonDocumentOptions
+        {
+            MaxDepth = 256
+        })!;
     }
 
     public void SetRevision(int revision)
@@ -43,7 +46,12 @@ public class LbpLevel
 
     public void Export(string output)
     {
-        JsonSerializerOptions options = new() { WriteIndented = true };
+        JsonSerializerOptions options = new()
+        {
+            WriteIndented = true,
+            MaxDepth = 256
+        };
+
         File.WriteAllText(output, _root.ToJsonString(options));
     }
 
@@ -120,7 +128,7 @@ public class LbpLevel
             uint? fallback = settings.CategoryDefaults.TryGetValue(cat, out uint cd)
                 ? cd
                 : settings.DefaultGuid;
-            Console.WriteLine($"  [not in map] [{cat,-16}] guid {oldGuid} => fallback {fallback}");
+            Console.WriteLine($"  [not in map] [{cat,-16}] guid {oldGuid} (unknown path) => fallback {fallback}");
             return fallback;
         }
 
@@ -131,7 +139,7 @@ public class LbpLevel
         uint? result = settings.CategoryDefaults.TryGetValue(asset.Category, out uint catDefault)
             ? catDefault
             : settings.DefaultGuid;
-        Console.WriteLine($"  [no target ] [{asset.Category,-16}] guid {oldGuid} => fallback {result}");
+        Console.WriteLine($"  [no target ] [{asset.Category,-16}] guid {oldGuid} ({asset.FromPath}) => fallback {result}");
         return result;
     }
 }
