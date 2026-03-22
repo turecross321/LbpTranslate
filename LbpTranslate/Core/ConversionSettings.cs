@@ -16,9 +16,23 @@ public class ConversionSettings
     public required uint? DefaultGuid;
 
     /// <summary>
-    /// Per-category fallback guids. When a guid is unmapped, the converter checks
-    /// this dictionary by the source asset's category before falling back to DefaultGuid.
-    /// E.g. { "Material": 12345, "Sticker": 67890 }
+    /// Per-category fallback guids. When a guid is unmapped (or maps to a missing target asset),
+    /// the converter checks this dictionary by the source asset's category before falling back
+    /// to <see cref="DefaultGuid"/>.
+    ///
+    /// Works for all asset categories, including non-plan types:
+    ///   - AssetCategory.GfxMaterial  → default .gmat replacement guid
+    ///   - AssetCategory.Mesh         → default .mol / .msh replacement guid
+    ///   - AssetCategory.Texture      → default .tex replacement guid
+    ///   - AssetCategory.Animation    → default .anim replacement guid
+    ///   - AssetCategory.StaticMesh   → default .smh replacement guid
+    ///   - AssetCategory.PhysicsMaterial → default .mat replacement guid
+    ///   - AssetCategory.Bevel        → default .bev replacement guid
+    ///   - AssetCategory.Palette      → default .pal replacement guid
+    ///   - AssetCategory.Script       → default .ff / .fsh replacement guid
+    ///
+    /// Example JSON:
+    ///   "CategoryDefaults": { "Texture": 12345, "GfxMaterial": 67890 }
     /// </summary>
     public Dictionary<AssetCategory, uint> CategoryDefaults = new();
 }

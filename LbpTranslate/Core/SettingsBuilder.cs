@@ -72,6 +72,8 @@ public class SettingsBuilder
 
     /// <summary>
     /// Builds a <see cref="ConversionSettings"/> by cross-referencing two bluray guid maps.
+    /// Includes .plan files (with inventory-type-based categories) as well as other
+    /// asset types: .gmat, .mol/.msh, .tex, .anim, .smh, .mat, .bev, .pal, .ff/.fsh.
     /// Progress is reported via <paramref name="log"/> so the caller controls display.
     /// </summary>
     public SettingsBuilderResult Build(
@@ -96,41 +98,68 @@ public class SettingsBuilder
 
         List<AssetEntry> entries = [];
 
+        // ── Pass 1: .plan files (need binary parse for inventory type) ────
         foreach (FileDbEntry entry in fromDb.Entries.Where(e => e.Path.EndsWith(".plan")))
         {
-            string       filename     = entry.Path.Split("/").Last();
-            FileDbEntry? match        = toDb.Entries.FirstOrDefault(e => e.Path.Contains(filename));
-            string fullPlanPath = Path.Combine(options.PlanDataDir, entry.Path);
+            ProcessEntry(entry, toDb, options, settings, entries, log, isPlan: true);
+        }
 
-            
-            
-            AssetCategory category = AssetCategoryHelper.FromPlanType(PlanReader.ReadType(fullPlanPath));
-            bool          matched  = match != null;
-
-            entries.Add(new AssetEntry
-            {
-                FromGuid = entry.Guid,
-                FromPath = entry.Path,
-                ToGuid   = match?.Guid,
-                ToPath   = match?.Path,
-                Category = category,
-                Matched  = matched,
-            });
-
-            settings.GuidMap[entry.Guid] = new LbpAsset
-            {
-                FromGuid = entry.Guid,
-                FromPath = entry.Path,
-                ToGuid   = match?.Guid,
-                ToPath   = match?.Path,
-                Category = category,
-            };
-
-            string status = matched ? "matched " : "no match";
-            log($"  [{status}] [{category,-16}] {entry.Path}{(matched ? $" => {match!.Path}" : "")}");
+        // ── Pass 2: other mappable asset types ────────────────────────────
+        foreach (FileDbEntry entry in fromDb.Entries.Where(
+            e => AssetCategoryHelper.IsNonPlanMappableExtension(e.Path)))
+        {
+            ProcessEntry(entry, toDb, options, settings, entries, log, isPlan: false);
         }
 
         return new SettingsBuilderResult { Settings = settings, Entries = entries };
+    }
+
+    private void ProcessEntry(
+        FileDbEntry            entry,
+        FileDb                 toDb,
+        SettingsBuilderOptions options,
+        ConversionSettings     settings,
+        List<AssetEntry>       entries,
+        Action<string>         log,
+        bool                   isPlan)
+    {
+        string       filename = entry.Path.Split("/").Last();
+        FileDbEntry? match    = toDb.Entries.FirstOrDefault(e => e.Path.Contains(filename));
+
+        AssetCategory category;
+        if (isPlan)
+        {
+            string fullPlanPath = Path.Combine(options.PlanDataDir, entry.Path);
+            category = AssetCategoryHelper.FromPlanType(PlanReader.ReadType(fullPlanPath));
+        }
+        else
+        {
+            category = AssetCategoryHelper.FromFileExtension(entry.Path);
+        }
+
+        bool matched = match != null;
+
+        entries.Add(new AssetEntry
+        {
+            FromGuid = entry.Guid,
+            FromPath = entry.Path,
+            ToGuid   = match?.Guid,
+            ToPath   = match?.Path,
+            Category = category,
+            Matched  = matched,
+        });
+
+        settings.GuidMap[entry.Guid] = new LbpAsset
+        {
+            FromGuid = entry.Guid,
+            FromPath = entry.Path,
+            ToGuid   = match?.Guid,
+            ToPath   = match?.Path,
+            Category = category,
+        };
+
+        string status = matched ? "matched " : "no match";
+        log($"  [{status}] [{category,-16}] {entry.Path}{(matched ? $" => {match!.Path}" : "")}");
     }
 
     private static string? DefaultFileResolver(string directory, string filename)
